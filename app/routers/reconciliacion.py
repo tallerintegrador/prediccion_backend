@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.models import EstimacionPredictiva
@@ -9,6 +10,56 @@ from app.schemas.prediccion import EstimacionResumen, ReconciliacionRequest, Rec
 
 
 router = APIRouter()
+
+
+@router.get("/resumen")
+def obtener_resumen_reconciliacion(db: Session = Depends(get_db)) -> dict:
+    reconciliados = (
+        db.query(EstimacionPredictiva)
+        .filter(EstimacionPredictiva.costo_real_usd.is_not(None))
+        .order_by(EstimacionPredictiva.reconciled_at.desc(), EstimacionPredictiva.id.desc())
+        .all()
+    )
+    total_reconciliados = len(reconciliados)
+    variaciones = [
+        abs(float(item.variacion_porcentaje))
+        for item in reconciliados
+        if item.variacion_porcentaje is not None
+    ]
+    variacion_promedio = round(sum(variaciones) / len(variaciones), 2) if variaciones else None
+
+    mes_actual = datetime.now(timezone.utc).strftime("%Y-%m")
+    reconciliados_mes = (
+        db.query(func.count(EstimacionPredictiva.id))
+        .filter(
+            EstimacionPredictiva.costo_real_usd.is_not(None),
+            func.strftime("%Y-%m", EstimacionPredictiva.reconciled_at) == mes_actual,
+        )
+        .scalar()
+        or 0
+    )
+
+    return {
+        "kpis": {
+            "reconciliados_mes": reconciliados_mes,
+            "total_reconciliados": total_reconciliados,
+            "variacion_promedio": variacion_promedio,
+            "sin_variacion_significativa": len([value for value in variaciones if value < 5]),
+            "variacion_mayor_10": len([value for value in variaciones if value > 10]),
+        },
+        "operaciones": [
+            {
+                "id": item.id,
+                "producto": item.producto,
+                "costo_predicho_usd": item.costo_predicho_usd,
+                "costo_real_usd": item.costo_real_usd,
+                "variacion_usd": item.variacion_usd,
+                "variacion_porcentaje": item.variacion_porcentaje,
+                "reconciled_at": item.reconciled_at,
+            }
+            for item in reconciliados
+        ],
+    }
 
 
 @router.get("/pendientes", response_model=list[EstimacionResumen])

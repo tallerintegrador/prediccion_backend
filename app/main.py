@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import inspect, text
 
 from app.core.settings import get_settings
 from app.db.models import DespachoHistorico, EstimacionPredictiva
@@ -10,14 +11,37 @@ from app.routers import dashboard, historico, motor, prediccion, preliquidacion,
 from app.services.ml_service import MLService
 
 
+def _ensure_schema_compatibility() -> None:
+    settings = get_settings()
+    if not settings.database_url.startswith("sqlite"):
+        return
+
+    inspector = inspect(engine)
+    table_names = inspector.get_table_names()
+    if "estimaciones_predictivas" not in table_names:
+        return
+
+    columns = {column["name"] for column in inspector.get_columns("estimaciones_predictivas")}
+    if "fecha_estimada_arribo" not in columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text("ALTER TABLE estimaciones_predictivas ADD COLUMN fecha_estimada_arribo DATE")
+            )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
     ml_service = MLService(settings.model_path)
-    ml_service.load_model()
+    try:
+        ml_service.load_model()
+        app.state.model_error = None
+    except (FileNotFoundError, TypeError) as exc:
+        app.state.model_error = str(exc)
     app.state.ml_service = ml_service
 
     Base.metadata.create_all(bind=engine)
+    _ensure_schema_compatibility()
     yield
 
     app.state.ml_service = None

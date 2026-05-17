@@ -23,7 +23,14 @@ def estimar_costo(
             detail="El modelo predictivo no esta disponible.",
         )
 
-    costo_predicho = round(ml_service.predict(payload), 2)
+    try:
+        costo_predicho = round(ml_service.predict(payload), 2)
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
     desglose = build_cost_breakdown(costo_predicho)
     estimacion = EstimacionPredictiva(
         categoria=payload.categoria,
@@ -33,6 +40,7 @@ def estimar_costo(
         incoterm=payload.incoterm,
         cantidad=payload.cantidad,
         tipo_cambio=payload.tipo_cambio,
+        fecha_estimada_arribo=payload.fecha_estimada_arribo,
         costo_predicho_usd=costo_predicho,
         desglose=desglose,
     )

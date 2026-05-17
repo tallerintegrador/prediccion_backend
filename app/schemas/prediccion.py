@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,6 +11,7 @@ class PrediccionRequest(BaseModel):
     incoterm: str = Field(..., min_length=1, max_length=20)
     cantidad: float = Field(..., gt=0)
     tipo_cambio: float = Field(..., gt=0)
+    fecha_estimada_arribo: date | None = None
 
 
 class DesgloseCosto(BaseModel):
@@ -39,6 +40,7 @@ class EstimacionResumen(BaseModel):
     incoterm: str
     cantidad: float
     tipo_cambio: float
+    fecha_estimada_arribo: date | None = None
     costo_predicho_usd: float
     desglose: DesgloseCosto
     costo_real_usd: float | None = None

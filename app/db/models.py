@@ -30,6 +30,7 @@ class EstimacionPredictiva(Base):
     incoterm = Column(String(20), nullable=False)
     cantidad = Column(Float, nullable=False)
     tipo_cambio = Column(Float, nullable=False)
+    fecha_estimada_arribo = Column(Date, nullable=True, index=True)
     costo_predicho_usd = Column(Float, nullable=False)
     desglose = Column(JSON, nullable=False)
     costo_real_usd = Column(Float, nullable=True)

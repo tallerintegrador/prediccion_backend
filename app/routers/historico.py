@@ -1,6 +1,7 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import distinct, func
 from sqlalchemy.orm import Session
 
 from app.db.models import DespachoHistorico
@@ -9,6 +10,45 @@ from app.schemas.despacho import DespachosPaginados
 
 
 router = APIRouter()
+
+
+@router.get("/filtros")
+def obtener_filtros(db: Session = Depends(get_db)) -> dict[str, list[str]]:
+    categorias = [
+        value
+        for (value,) in db.query(distinct(DespachoHistorico.categoria))
+        .order_by(DespachoHistorico.categoria.asc())
+        .all()
+        if value
+    ]
+    paises = [
+        value
+        for (value,) in db.query(distinct(DespachoHistorico.pais_origen))
+        .order_by(DespachoHistorico.pais_origen.asc())
+        .all()
+        if value
+    ]
+    proveedores = [
+        value
+        for (value,) in db.query(distinct(DespachoHistorico.proveedor))
+        .order_by(DespachoHistorico.proveedor.asc())
+        .all()
+        if value
+    ]
+    periodos = [
+        value
+        for (value,) in db.query(distinct(func.strftime("%Y", DespachoHistorico.fecha_despacho)))
+        .order_by(func.strftime("%Y", DespachoHistorico.fecha_despacho).desc())
+        .all()
+        if value
+    ]
+
+    return {
+        "categorias": categorias,
+        "paises": paises,
+        "proveedores": proveedores,
+        "periodos": periodos,
+    }
 
 
 @router.get("/despachos", response_model=DespachosPaginados)
