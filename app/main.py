@@ -8,7 +8,7 @@ from app.core.settings import get_settings
 from app.db.models import DespachoHistorico, EstimacionPredictiva
 from app.db.session import Base, engine
 from app.routers import dashboard, historico, motor, prediccion, preliquidacion, reconciliacion
-from app.services.ml_service import MLService
+from app.services.ml_service import ModelRegistry
 
 
 def _ensure_schema_compatibility() -> None:
@@ -32,19 +32,16 @@ def _ensure_schema_compatibility() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    ml_service = MLService(settings.model_path)
-    try:
-        ml_service.load_model()
-        app.state.model_error = None
-    except (FileNotFoundError, TypeError) as exc:
-        app.state.model_error = str(exc)
-    app.state.ml_service = ml_service
+    model_registry = ModelRegistry(settings.models_manifest_path)
+    model_registry.load_models()
+    app.state.model_error = model_registry.manifest_error
+    app.state.model_registry = model_registry
 
     Base.metadata.create_all(bind=engine)
     _ensure_schema_compatibility()
     yield
 
-    app.state.ml_service = None
+    app.state.model_registry = None
 
 
 settings = get_settings()
