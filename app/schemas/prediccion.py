@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -22,11 +23,40 @@ class DesgloseCosto(BaseModel):
     otros: float
 
 
-class PrediccionResponse(BaseModel):
-    id: int
-    costo_predicho_usd: float
-    desglose: DesgloseCosto
+class ModeloPredictivoInfo(BaseModel):
+    id: str
+    nombre: str
+    archivo: str
+    tipo: str
+    activo: bool
+    principal: bool
+    cargado: bool
+    error: str | None = None
+    metricas: dict[str, Any] | None = None
+
+
+class ModeloPrincipal(BaseModel):
+    id: str
+    nombre: str
+
+
+class ResultadoModeloPrediccion(BaseModel):
+    modelo_id: str
+    modelo_nombre: str
+    principal: bool
+    costo_predicho_usd: float | None = None
+    desglose: DesgloseCosto | None = None
     moneda: str = "USD"
+    error: str | None = None
+
+
+class PrediccionResponse(BaseModel):
+    id: int | None = None
+    modelo_principal: ModeloPrincipal | None = None
+    costo_predicho_usd: float | None = None
+    desglose: DesgloseCosto | None = None
+    moneda: str = "USD"
+    resultados_modelos: list[ResultadoModeloPrediccion] = Field(default_factory=list)
 
 
 class EstimacionResumen(BaseModel):

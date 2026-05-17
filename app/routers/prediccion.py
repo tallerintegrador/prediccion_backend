@@ -1,37 +1,54 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.models import EstimacionPredictiva
 from app.db.session import get_db
-from app.schemas.prediccion import PrediccionRequest, PrediccionResponse
-from app.services.ml_service import MLService, build_cost_breakdown
+from app.schemas.prediccion import ModeloPredictivoInfo, PrediccionRequest, PrediccionResponse
+from app.services.ml_service import ModelRegistry
 
 
 router = APIRouter()
 
 
-@router.post("/estimar", response_model=PrediccionResponse, status_code=status.HTTP_201_CREATED)
+@router.get("/modelos", response_model=list[ModeloPredictivoInfo])
+def listar_modelos(request: Request) -> list[dict]:
+    model_registry: ModelRegistry | None = getattr(request.app.state, "model_registry", None)
+    if model_registry is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="El registro de modelos no esta disponible.",
+        )
+    return model_registry.list_models()
+
+
+@router.post("/estimar", response_model=PrediccionResponse)
 def estimar_costo(
     payload: PrediccionRequest,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ) -> PrediccionResponse:
-    ml_service: MLService | None = getattr(request.app.state, "ml_service", None)
-    if ml_service is None:
+    model_registry: ModelRegistry | None = getattr(request.app.state, "model_registry", None)
+    if model_registry is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="El modelo predictivo no esta disponible.",
+            detail="El registro de modelos no esta disponible.",
         )
 
-    try:
-        costo_predicho = round(ml_service.predict(payload), 2)
-    except RuntimeError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
+    resultados = model_registry.predict_all(payload)
+    principal = next(
+        (
+            item
+            for item in resultados
+            if item["principal"] and item["error"] is None and item["costo_predicho_usd"] is not None
+        ),
+        None,
+    )
 
-    desglose = build_cost_breakdown(costo_predicho)
+    if principal is None:
+        response.status_code = status.HTTP_200_OK
+        return PrediccionResponse(resultados_modelos=resultados)
+
     estimacion = EstimacionPredictiva(
         categoria=payload.categoria,
         producto=payload.producto,
@@ -41,15 +58,21 @@ def estimar_costo(
         cantidad=payload.cantidad,
         tipo_cambio=payload.tipo_cambio,
         fecha_estimada_arribo=payload.fecha_estimada_arribo,
-        costo_predicho_usd=costo_predicho,
-        desglose=desglose,
+        costo_predicho_usd=principal["costo_predicho_usd"],
+        desglose=principal["desglose"],
     )
     db.add(estimacion)
     db.commit()
     db.refresh(estimacion)
 
+    response.status_code = status.HTTP_201_CREATED
     return PrediccionResponse(
         id=estimacion.id,
+        modelo_principal={
+            "id": principal["modelo_id"],
+            "nombre": principal["modelo_nombre"],
+        },
         costo_predicho_usd=estimacion.costo_predicho_usd,
         desglose=estimacion.desglose,
+        resultados_modelos=resultados,
     )
