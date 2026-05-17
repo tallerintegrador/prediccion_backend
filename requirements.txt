@@ -5,7 +5,8 @@ pydantic-settings
 python-dotenv
 sqlalchemy
 joblib
-scikit-learn
+scikit-learn==1.6.1
+xgboost
 pandas
 openpyxl
 weasyprint
