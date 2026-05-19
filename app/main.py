@@ -54,7 +54,10 @@ def _ensure_schema_compatibility() -> None:
 async def lifespan(app: FastAPI):
     settings = get_settings()
     model_registry = ModelRegistry(settings.models_dir)
-    model_registry.load_models()
+    try:
+        model_registry.load_models()
+    except Exception as exc:
+        logger.error("Error cargando modelos: %s", exc)
     app.state.model_error = model_registry.manifest_error
     app.state.model_registry = model_registry
 
