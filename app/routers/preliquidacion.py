@@ -10,6 +10,30 @@ from app.services.report_service import ReportService
 router = APIRouter()
 
 
+def _build_numero(estimacion: EstimacionPredictiva) -> str:
+    return f"PREL-{estimacion.created_at.year}-{estimacion.id:04d}"
+
+
+def _build_costo_pen(estimacion: EstimacionPredictiva) -> float:
+    return round(float(estimacion.costo_predicho_usd) * float(estimacion.tipo_cambio), 2)
+
+
+def _build_resumen(estimacion: EstimacionPredictiva) -> dict:
+    return {
+        "id": estimacion.id,
+        "numero": _build_numero(estimacion),
+        "estado": "ESTIMADA",
+        "producto": estimacion.producto,
+        "proveedor": estimacion.proveedor,
+        "pais_origen": estimacion.pais_origen,
+        "incoterm": estimacion.incoterm,
+        "fecha_estimada_arribo": estimacion.fecha_estimada_arribo,
+        "fecha_emision": estimacion.created_at.date(),
+        "costo_predicho_usd": estimacion.costo_predicho_usd,
+        "costo_predicho_pen": _build_costo_pen(estimacion),
+    }
+
+
 def _build_detalle(estimacion: EstimacionPredictiva) -> dict:
     tipo_cambio = float(estimacion.tipo_cambio)
     desglose = [
@@ -25,7 +49,7 @@ def _build_detalle(estimacion: EstimacionPredictiva) -> dict:
     ]
     return {
         "id": estimacion.id,
-        "numero": f"PREL-{estimacion.created_at.year}-{estimacion.id:04d}",
+        "numero": _build_numero(estimacion),
         "estado": "ESTIMADA",
         "producto": estimacion.producto,
         "categoria": estimacion.categoria,
@@ -37,7 +61,7 @@ def _build_detalle(estimacion: EstimacionPredictiva) -> dict:
         "fecha_estimada_arribo": estimacion.fecha_estimada_arribo,
         "fecha_emision": estimacion.created_at.date(),
         "costo_predicho_usd": estimacion.costo_predicho_usd,
-        "costo_predicho_pen": round(estimacion.costo_predicho_usd * tipo_cambio, 2),
+        "costo_predicho_pen": _build_costo_pen(estimacion),
         "desglose": desglose,
     }
 
@@ -59,6 +83,16 @@ def obtener_ultima_preliquidacion(db: Session = Depends(get_db)) -> dict:
     if estimacion is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No hay estimaciones registradas.")
     return _build_detalle(estimacion)
+
+
+@router.get("/historial")
+def listar_historial_preliquidaciones(db: Session = Depends(get_db)) -> list[dict]:
+    estimaciones = (
+        db.query(EstimacionPredictiva)
+        .order_by(EstimacionPredictiva.created_at.desc(), EstimacionPredictiva.id.desc())
+        .all()
+    )
+    return [_build_resumen(estimacion) for estimacion in estimaciones]
 
 
 @router.get("/{id}")
