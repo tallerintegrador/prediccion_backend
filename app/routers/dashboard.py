@@ -3,7 +3,7 @@ from datetime import date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func
+from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from app.core.settings import get_settings
@@ -109,33 +109,33 @@ def get_overview(request: Request, db: Session = Depends(get_db)) -> dict[str, A
     if _historical_count(db) > 0:
         despachos_anio = (
             db.query(func.count(DespachoHistorico.id))
-            .filter(func.strftime("%Y", DespachoHistorico.fecha_despacho) == str(anio_actual))
+            .filter(extract("year", DespachoHistorico.fecha_despacho) == anio_actual)
             .scalar()
             or 0
         )
 
         costo_anio = (
             db.query(func.sum(DespachoHistorico.costo_total_usd))
-            .filter(func.strftime("%Y", DespachoHistorico.fecha_despacho) == str(anio_actual))
+            .filter(extract("year", DespachoHistorico.fecha_despacho) == anio_actual)
             .scalar()
             or 0.0
         )
         fuente_datos = "historico"
     else:
-        fecha_operacion = func.strftime(
-            "%Y",
+        fecha_operacion = extract(
+            "year",
             func.coalesce(EstimacionPredictiva.fecha_estimada_arribo, EstimacionPredictiva.created_at),
         )
         despachos_anio = (
             db.query(func.count(EstimacionPredictiva.id))
-            .filter(fecha_operacion == str(anio_actual))
+            .filter(fecha_operacion == anio_actual)
             .scalar()
             or 0
         )
 
         costo_anio = (
             db.query(func.sum(EstimacionPredictiva.costo_predicho_usd))
-            .filter(fecha_operacion == str(anio_actual))
+            .filter(fecha_operacion == anio_actual)
             .scalar()
             or 0.0
         )
