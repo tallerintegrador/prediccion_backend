@@ -37,17 +37,18 @@ def _ensure_schema_compatibility() -> None:
         "TIMESTAMP WITH TIME ZONE": "DATETIME",
     } if is_sqlite else {}
 
-    with engine.begin() as connection:
-        for column_name, column_type in expected_columns.items():
-            if column_name in columns:
-                continue
-            sql_type = type_overrides.get(column_type, column_type)
-            try:
+    for column_name, column_type in expected_columns.items():
+        if column_name in columns:
+            continue
+        sql_type = type_overrides.get(column_type, column_type)
+        try:
+            with engine.begin() as connection:
                 connection.execute(
                     text(f"ALTER TABLE estimaciones_predictivas ADD COLUMN {column_name} {sql_type}")
                 )
-            except Exception as exc:
-                logger.warning("No se pudo agregar columna %s: %s", column_name, exc)
+            logger.info("Columna %s agregada exitosamente.", column_name)
+        except Exception as exc:
+            logger.warning("No se pudo agregar columna %s: %s", column_name, exc)
 
 
 @asynccontextmanager

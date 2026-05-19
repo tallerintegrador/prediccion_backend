@@ -1,8 +1,10 @@
+import logging
 from calendar import monthrange
 from datetime import date, datetime, timezone
 from math import isfinite
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.db.models import EstimacionPredictiva
@@ -10,6 +12,7 @@ from app.db.session import get_db
 from app.schemas.prediccion import EstimacionResumen, ReconciliacionRequest, ReconciliacionResponse
 
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -41,12 +44,25 @@ def _sort_datetime(value: object) -> datetime:
 
 @router.get("/resumen")
 def obtener_resumen_reconciliacion(db: Session = Depends(get_db)) -> dict:
-    reconciliados = (
-        db.query(EstimacionPredictiva)
-        .filter(EstimacionPredictiva.costo_real_usd.is_not(None))
-        .order_by(EstimacionPredictiva.id.desc())
-        .all()
-    )
+    try:
+        reconciliados = (
+            db.query(EstimacionPredictiva)
+            .filter(EstimacionPredictiva.costo_real_usd.is_not(None))
+            .order_by(EstimacionPredictiva.id.desc())
+            .all()
+        )
+    except OperationalError as exc:
+        logger.error("Error consultando estimaciones reconciliadas: %s", exc)
+        return {
+            "kpis": {
+                "reconciliados_mes": 0,
+                "total_reconciliados": 0,
+                "variacion_promedio": None,
+                "sin_variacion_significativa": 0,
+                "variacion_mayor_10": 0,
+            },
+            "operaciones": [],
+        }
     reconciliados.sort(key=lambda item: (_sort_datetime(item.reconciled_at), item.id), reverse=True)
     total_reconciliados = len(reconciliados)
     variaciones = [
