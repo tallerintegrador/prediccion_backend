@@ -30,6 +30,8 @@ class ModeloPredictivoInfo(BaseModel):
     tipo: str
     activo: bool
     principal: bool
+    objetivo: str = "costo"
+    descripcion: str | None = None
     cargado: bool
     error: str | None = None
     metricas: dict[str, Any] | None = None

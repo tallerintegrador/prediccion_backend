@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "sqlite:///./prediccion.db"
     model_path: Path = PROJECT_ROOT / "models" / "modelo_activo.joblib"
+    models_dir: Path = PROJECT_ROOT / "models"
     models_manifest_path: Path = PROJECT_ROOT / "models" / "models.json"
     metrics_path: Path = PROJECT_ROOT / "models" / "metrics.json"
     cors_origins: list[str] = [
