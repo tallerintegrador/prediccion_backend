@@ -478,10 +478,10 @@ class ModelRegistry:
         self.manifest_error = None
 
         if not self.models_dir.exists():
-            self.manifest_error = f"No existe el directorio de modelos: {self.models_dir}"
-            return
+            raw_models = self._default_models()
+        else:
+            raw_models = self._read_manifest() if self.use_manifest else self._default_models()
 
-        raw_models = self._read_manifest() if self.use_manifest else self._default_models()
         for raw_model in raw_models:
             loaded_model = self._load_single_model(raw_model)
             if loaded_model is not None:

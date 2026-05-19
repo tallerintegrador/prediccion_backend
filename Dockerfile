@@ -16,6 +16,7 @@ RUN pip install --upgrade pip \
 
 COPY app ./app
 COPY models ./models
+RUN test -d models && find models -maxdepth 1 -name "*.joblib" -print -quit | grep -q .
 COPY prediccion.db ./prediccion.db
 
 EXPOSE 8000
