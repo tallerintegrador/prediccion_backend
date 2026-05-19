@@ -23,3 +23,4 @@ class DespachosPaginados(BaseModel):
     total: int
     page: int
     page_size: int
+    fuente: str = "historico"
