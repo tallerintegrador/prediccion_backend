@@ -7,6 +7,7 @@ from app.core.settings import get_settings
 from app.db.models import EstimacionPredictiva
 from app.db.session import get_db
 from app.services.metrics_service import (
+    enrich_model_metrics,
     fallback_comparison_rows,
     fallback_precision_evolution,
     fallback_precision_rows,
@@ -96,6 +97,7 @@ def obtener_resumen_motor(request: Request, db: Session = Depends(get_db)) -> di
     reconciled = _reconciled_metrics(db)
     model_registry = getattr(request.app.state, "model_registry", None)
     models = model_registry.list_models() if model_registry is not None else []
+    models = enrich_model_metrics(models, artifact_metrics)
 
     metrics = normalized_metrics(raw_metrics, artifact_metrics)
     for key, value in reconciled["metricas"].items():

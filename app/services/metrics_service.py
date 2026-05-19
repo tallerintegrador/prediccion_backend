@@ -82,6 +82,20 @@ def model_summary(models: list[dict[str, Any]]) -> dict[str, int]:
     }
 
 
+def enrich_model_metrics(models: list[dict[str, Any]], artifact_metrics: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        {
+            **model,
+            "metricas": {
+                **_artifact_metrics_for_model(model, artifact_metrics),
+                **(model.get("metricas") or {}),
+            }
+            or None,
+        }
+        for model in models
+    ]
+
+
 def load_artifact_metrics(models_dir: Path) -> dict[str, Any]:
     return {
         "clasificacion": _read_joblib_dict(models_dir / "clasificacion_config.joblib"),
@@ -189,6 +203,42 @@ def _read_drift_metrics(path: Path) -> dict[str, Any]:
         "test_period": value.get("test_period") if isinstance(value, dict) else None,
         "fecha_calculo": value.get("fecha_calculo") if isinstance(value, dict) else None,
     }
+
+
+def _artifact_metrics_for_model(model: dict[str, Any], artifact_metrics: dict[str, Any]) -> dict[str, Any]:
+    model_id = str(model.get("id") or "").lower()
+    file_name = str(model.get("archivo") or "").lower()
+    objective = str(model.get("objetivo") or "").lower()
+
+    if objective == "costo" or model_id.startswith("lgb_"):
+        return artifact_metrics.get("regresion", {})
+    if "clasificador" in model_id or "clasificador" in file_name or "xgboost" in model_id:
+        classification = artifact_metrics.get("clasificacion", {})
+        return {
+            "algoritmo": classification.get("algoritmo"),
+            "accuracy_test": classification.get("accuracy_test"),
+            "f1_macro_test": classification.get("f1_macro_test"),
+            "f1_macro_cv": classification.get("f1_macro_cv"),
+            "features_num": len(classification.get("features_num_cls") or []),
+            "features_cat": len(classification.get("features_cat_cls") or []),
+        }
+    if model_id.startswith("kmeans") or "kmeans" in file_name:
+        clustering = artifact_metrics.get("clustering", {})
+        return {
+            key: clustering.get(key)
+            for key in ("k_optimo", "sil_kmeans", "db_kmeans")
+            if clustering.get(key) is not None
+        }
+    if model_id.startswith("hdbscan") or "hdbscan" in file_name:
+        clustering = artifact_metrics.get("clustering", {})
+        return {
+            key: clustering.get(key)
+            for key in ("sil_hdbscan",)
+            if clustering.get(key) is not None
+        }
+    if "psi" in model_id or "drift" in model_id:
+        return artifact_metrics.get("drift", {})
+    return {}
 
 
 def _difference(left: Any, right: Any) -> float | None:
