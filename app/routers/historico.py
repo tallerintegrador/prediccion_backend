@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import distinct, func
+from sqlalchemy import Integer, cast, distinct, extract, func
 from sqlalchemy.orm import Session
 
 from app.db.models import DespachoHistorico, EstimacionPredictiva
@@ -47,9 +47,12 @@ def _estimation_to_shipment(item: EstimacionPredictiva) -> DespachoHistoricoResp
 @router.get("/filtros")
 def obtener_filtros(db: Session = Depends(get_db)) -> dict[str, list[str]]:
     if not _has_historical_shipments(db):
-        fecha_operacion = func.strftime(
-            "%Y",
-            func.coalesce(EstimacionPredictiva.fecha_estimada_arribo, EstimacionPredictiva.created_at),
+        fecha_operacion = cast(
+            extract(
+                "year",
+                func.coalesce(EstimacionPredictiva.fecha_estimada_arribo, EstimacionPredictiva.created_at),
+            ),
+            Integer,
         )
         return {
             "categorias": [
@@ -74,11 +77,11 @@ def obtener_filtros(db: Session = Depends(get_db)) -> dict[str, list[str]]:
                 if value
             ],
             "periodos": [
-                value
+                str(value)
                 for (value,) in db.query(distinct(fecha_operacion))
                 .order_by(fecha_operacion.desc())
                 .all()
-                if value
+                if value is not None
             ],
         }
 
@@ -103,12 +106,13 @@ def obtener_filtros(db: Session = Depends(get_db)) -> dict[str, list[str]]:
         .all()
         if value
     ]
+    year_expr = cast(extract("year", DespachoHistorico.fecha_despacho), Integer)
     periodos = [
-        value
-        for (value,) in db.query(distinct(func.strftime("%Y", DespachoHistorico.fecha_despacho)))
-        .order_by(func.strftime("%Y", DespachoHistorico.fecha_despacho).desc())
+        str(value)
+        for (value,) in db.query(distinct(year_expr))
+        .order_by(year_expr.desc())
         .all()
-        if value
+        if value is not None
     ]
 
     return {

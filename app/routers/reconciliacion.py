@@ -1,4 +1,5 @@
-from datetime import datetime, timezone
+from calendar import monthrange
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
@@ -28,12 +29,15 @@ def obtener_resumen_reconciliacion(db: Session = Depends(get_db)) -> dict:
     ]
     variacion_promedio = round(sum(variaciones) / len(variaciones), 2) if variaciones else None
 
-    mes_actual = datetime.now(timezone.utc).strftime("%Y-%m")
+    hoy = datetime.now(timezone.utc).date()
+    inicio_mes = date(hoy.year, hoy.month, 1)
+    fin_mes = date(hoy.year, hoy.month, monthrange(hoy.year, hoy.month)[1])
     reconciliados_mes = (
         db.query(func.count(EstimacionPredictiva.id))
         .filter(
             EstimacionPredictiva.costo_real_usd.is_not(None),
-            func.strftime("%Y-%m", EstimacionPredictiva.reconciled_at) == mes_actual,
+            EstimacionPredictiva.reconciled_at >= inicio_mes,
+            EstimacionPredictiva.reconciled_at <= datetime.combine(fin_mes, datetime.max.time()).replace(tzinfo=timezone.utc),
         )
         .scalar()
         or 0

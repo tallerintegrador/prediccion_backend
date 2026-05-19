@@ -1,8 +1,13 @@
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import inspect, text
+
+
+logger = logging.getLogger(__name__)
 
 from app.core.settings import get_settings
 from app.db.models import DespachoHistorico, EstimacionPredictiva
@@ -54,6 +59,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def _cors_headers_for(request: Request) -> dict[str, str]:
+    origin = request.headers.get("origin")
+    if origin and origin in settings.cors_origins:
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Vary": "Origin",
+        }
+    return {}
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "error": str(exc)},
+        headers=_cors_headers_for(request),
+    )
 
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])
 app.include_router(historico.router, prefix="/api/historico", tags=["Historico"])
