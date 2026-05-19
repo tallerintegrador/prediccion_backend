@@ -12,5 +12,5 @@ hdbscan
 pyarrow
 pandas
 openpyxl
-weasyprint
+reportlab
 psycopg2-binary
