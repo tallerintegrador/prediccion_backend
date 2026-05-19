@@ -1,0 +1,271 @@
+{
+  "modelos": [
+    {
+      "id": "lgb_multi_concepto",
+      "nombre": "LightGBM multi-concepto",
+      "archivo": "lgb_multi_concepto.joblib",
+      "tipo": "lgb_conceptos",
+      "activo": true,
+      "principal": true,
+      "objetivo": "costo",
+      "descripcion": "Estimacion principal sumando costos por concepto."
+    },
+    {
+      "id": "lgb_p10_multi_concepto",
+      "nombre": "LightGBM P10 multi-concepto",
+      "archivo": "lgb_p10_multi_concepto.joblib",
+      "tipo": "lgb_conceptos",
+      "activo": true,
+      "principal": false,
+      "objetivo": "costo",
+      "descripcion": "Escenario conservador inferior.",
+      "metricas": {"cuantil": 0.10}
+    },
+    {
+      "id": "lgb_p90_multi_concepto",
+      "nombre": "LightGBM P90 multi-concepto",
+      "archivo": "lgb_p90_multi_concepto.joblib",
+      "tipo": "lgb_conceptos",
+      "activo": true,
+      "principal": false,
+      "objetivo": "costo",
+      "descripcion": "Escenario conservador superior.",
+      "metricas": {"cuantil": 0.90}
+    },
+    {
+      "id": "xgboost_clasificador",
+      "nombre": "XGBoost clasificador de riesgo",
+      "archivo": "xgboost_clasificador.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "riesgo"
+    },
+    {
+      "id": "clasificador_riesgo",
+      "nombre": "Clasificador de riesgo",
+      "archivo": "clasificador_riesgo.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "riesgo"
+    },
+    {
+      "id": "isolation_forest",
+      "nombre": "Isolation Forest",
+      "archivo": "isolation_forest.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "anomalia",
+      "descripcion": "Deteccion de outliers en operaciones."
+    },
+    {
+      "id": "kmeans_k6",
+      "nombre": "KMeans K6",
+      "archivo": "kmeans_k6.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "segmentacion"
+    },
+    {
+      "id": "kmeans_k8",
+      "nombre": "KMeans K8",
+      "archivo": "kmeans_k8.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "segmentacion"
+    },
+    {
+      "id": "hdbscan_model",
+      "nombre": "HDBSCAN",
+      "archivo": "hdbscan_model.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "segmentacion"
+    },
+    {
+      "id": "clustering_pca",
+      "nombre": "Clustering PCA",
+      "archivo": "clustering_pca.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "segmentacion"
+    },
+    {
+      "id": "clustering_pca15",
+      "nombre": "Clustering PCA 15",
+      "archivo": "clustering_pca15.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "segmentacion"
+    },
+    {
+      "id": "clustering_preprocessor",
+      "nombre": "Preprocesador de clustering",
+      "archivo": "clustering_preprocessor.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "segmentacion"
+    },
+    {
+      "id": "clustering_config",
+      "nombre": "Config de clustering",
+      "archivo": "clustering_config.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "configuracion"
+    },
+    {
+      "id": "cluster_nombres",
+      "nombre": "Nombres de cluster",
+      "archivo": "cluster_nombres.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "configuracion"
+    },
+    {
+      "id": "clasificacion_config",
+      "nombre": "Config de clasificacion",
+      "archivo": "clasificacion_config.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "configuracion"
+    },
+    {
+      "id": "feature_config",
+      "nombre": "Config de features",
+      "archivo": "feature_config.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "configuracion"
+    },
+    {
+      "id": "regresion_medians",
+      "nombre": "Medianas de regresion",
+      "archivo": "regresion_medians.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "configuracion"
+    },
+    {
+      "id": "optuna_best_params",
+      "nombre": "Optuna mejores parametros",
+      "archivo": "optuna_best_params.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "configuracion"
+    },
+    {
+      "id": "cqr_margenes_por_concepto",
+      "nombre": "CQR margenes por concepto",
+      "archivo": "cqr_margenes_por_concepto.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "calibracion"
+    },
+    {
+      "id": "bias_correction_escalar",
+      "nombre": "Correccion sesgo escalar",
+      "archivo": "bias_correction_escalar.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "calibracion"
+    },
+    {
+      "id": "bias_correction_piecewise",
+      "nombre": "Correccion sesgo piecewise",
+      "archivo": "bias_correction_piecewise.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "calibracion"
+    },
+    {
+      "id": "bias_prov_concepto",
+      "nombre": "Sesgo por proveedor/concepto",
+      "archivo": "bias_prov_concepto.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "calibracion"
+    },
+    {
+      "id": "psi_baseline",
+      "nombre": "PSI baseline",
+      "archivo": "psi_baseline.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "drift"
+    },
+    {
+      "id": "riesgo_score_params",
+      "nombre": "Parametros score de riesgo",
+      "archivo": "riesgo_score_params.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "configuracion"
+    },
+    {
+      "id": "riesgo_encoder",
+      "nombre": "Encoder de riesgo",
+      "archivo": "riesgo_encoder.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "configuracion"
+    },
+    {
+      "id": "riesgo_cat_encoders",
+      "nombre": "Encoders categoricos riesgo",
+      "archivo": "riesgo_cat_encoders.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "configuracion"
+    },
+    {
+      "id": "riesgo_cat_encoders_xgb",
+      "nombre": "Encoders categoricos riesgo XGB",
+      "archivo": "riesgo_cat_encoders_xgb.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "configuracion"
+    },
+    {
+      "id": "label_encoder_riesgo",
+      "nombre": "Label encoder de riesgo",
+      "archivo": "label_encoder_riesgo.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "configuracion"
+    },
+    {
+      "id": "xgboost_label_encoder",
+      "nombre": "XGBoost label encoder",
+      "archivo": "xgboost_label_encoder.joblib",
+      "tipo": "joblib_soporte",
+      "activo": false,
+      "principal": false,
+      "objetivo": "configuracion"
+    }
+  ]
+}
