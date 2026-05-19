@@ -483,22 +483,29 @@ class ModelRegistry:
             raw_models = self._read_manifest() if self.use_manifest else self._default_models()
 
         for raw_model in raw_models:
-            loaded_model = self._load_single_model(raw_model)
-            if loaded_model is not None:
-                self.models.append(loaded_model)
+            try:
+                loaded_model = self._load_single_model(raw_model)
+                if loaded_model is not None:
+                    self.models.append(loaded_model)
+            except Exception:
+                continue
 
     def _read_manifest(self) -> list[Any]:
+        if not self.manifest_path.exists():
+            self.manifest_error = None
+            return self._default_models()
+
         try:
             with self.manifest_path.open("r", encoding="utf-8") as file:
                 manifest = json.load(file)
-        except json.JSONDecodeError as exc:
-            self.manifest_error = f"El manifiesto de modelos no es JSON valido: {exc}"
-            return []
+        except (json.JSONDecodeError, OSError) as exc:
+            self.manifest_error = None
+            return self._default_models()
 
         raw_models = manifest.get("modelos", [])
         if not isinstance(raw_models, list):
-            self.manifest_error = "El manifiesto debe contener una lista en la clave 'modelos'."
-            return []
+            self.manifest_error = None
+            return self._default_models()
         return raw_models
 
     def _default_models(self) -> list[dict[str, Any]]:
