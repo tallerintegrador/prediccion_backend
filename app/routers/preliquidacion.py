@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -86,13 +86,26 @@ def obtener_ultima_preliquidacion(db: Session = Depends(get_db)) -> dict:
 
 
 @router.get("/historial")
-def listar_historial_preliquidaciones(db: Session = Depends(get_db)) -> list[dict]:
+def listar_historial_preliquidaciones(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(5, ge=1, le=50),
+    db: Session = Depends(get_db),
+) -> dict:
+    query = db.query(EstimacionPredictiva)
+    total = query.count()
     estimaciones = (
-        db.query(EstimacionPredictiva)
+        query
         .order_by(EstimacionPredictiva.created_at.desc(), EstimacionPredictiva.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
         .all()
     )
-    return [_build_resumen(estimacion) for estimacion in estimaciones]
+    return {
+        "items": [_build_resumen(estimacion) for estimacion in estimaciones],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 @router.get("/{id}")
