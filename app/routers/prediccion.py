@@ -1,4 +1,7 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.db.models import EstimacionPredictiva
@@ -8,6 +11,7 @@ from app.services.ml_service import ModelRegistry
 
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/modelos", response_model=list[ModeloPredictivoInfo])
@@ -68,30 +72,45 @@ def estimar_costo(
         response.status_code = status.HTTP_200_OK
         return PrediccionResponse(resultados_modelos=resultados)
 
-    estimacion = EstimacionPredictiva(
-        categoria=payload.modalidad,
-        producto=payload.id_despacho,
-        pais_origen=payload.pol,
-        proveedor=payload.proveedor_servicio,
-        incoterm=payload.incoterm_familia,
-        cantidad=payload.peso_kg,
-        tipo_cambio=payload.tipo_cambio,
-        fecha_estimada_arribo=payload.fecha_eta,
-        costo_predicho_usd=principal["costo_predicho_usd"],
-        desglose=principal["desglose"],
-    )
-    db.add(estimacion)
-    db.commit()
-    db.refresh(estimacion)
+    try:
+        estimacion = EstimacionPredictiva(
+            categoria=payload.modalidad,
+            producto=payload.id_despacho,
+            pais_origen=payload.pol,
+            proveedor=payload.proveedor_servicio,
+            incoterm=payload.incoterm_familia,
+            cantidad=payload.peso_kg,
+            tipo_cambio=payload.tipo_cambio,
+            fecha_estimada_arribo=payload.fecha_eta,
+            costo_predicho_usd=principal["costo_predicho_usd"],
+            desglose=principal["desglose"],
+        )
+        db.add(estimacion)
+        db.commit()
+        db.refresh(estimacion)
 
-    response.status_code = status.HTTP_201_CREATED
-    return PrediccionResponse(
-        id=estimacion.id,
-        modelo_principal={
-            "id": principal["modelo_id"],
-            "nombre": principal["modelo_nombre"],
-        },
-        costo_predicho_usd=estimacion.costo_predicho_usd,
-        desglose=estimacion.desglose,
-        resultados_modelos=resultados,
-    )
+        response.status_code = status.HTTP_201_CREATED
+        return PrediccionResponse(
+            id=estimacion.id,
+            modelo_principal={
+                "id": principal["modelo_id"],
+                "nombre": principal["modelo_nombre"],
+            },
+            costo_predicho_usd=estimacion.costo_predicho_usd,
+            desglose=estimacion.desglose,
+            resultados_modelos=resultados,
+        )
+    except SQLAlchemyError:
+        db.rollback()
+        logger.exception("No se pudo persistir la estimacion predictiva.")
+        response.status_code = status.HTTP_200_OK
+        return PrediccionResponse(
+            id=None,
+            modelo_principal={
+                "id": principal["modelo_id"],
+                "nombre": principal["modelo_nombre"],
+            },
+            costo_predicho_usd=principal["costo_predicho_usd"],
+            desglose=principal["desglose"],
+            resultados_modelos=resultados,
+        )
