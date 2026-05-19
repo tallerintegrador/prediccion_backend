@@ -401,11 +401,17 @@ class ModelRegistry:
                     "objetivo": "configuracion",
                     "descripcion": None,
                     "cargado": False,
+                    "predecible": False,
+                    "ranking": None,
                     "error": self.manifest_error,
                     "metricas": None,
                 }
             ]
 
+        top_model_ids = {
+            item.config.id: index
+            for index, item in enumerate(self._top_prediction_models(limit=3), start=1)
+        }
         return [
             {
                 "id": item.config.id,
@@ -417,20 +423,88 @@ class ModelRegistry:
                 "objetivo": item.config.objetivo,
                 "descripcion": item.config.descripcion,
                 "cargado": item.loaded,
+                "predecible": self._is_predictable(item),
+                "ranking": top_model_ids.get(item.config.id),
                 "error": item.error,
                 "metricas": item.config.metricas,
             }
             for item in self.models
         ]
 
-    def predict_all(self, payload: PrediccionRequest) -> list[dict[str, Any]]:
-        return [self._predict_single(item, payload) for item in self.models if item.config.activo]
+    def predict_all(self, payload: PrediccionRequest, limit: int | None = None) -> list[dict[str, Any]]:
+        prediction_models = self._top_prediction_models(limit=limit)
 
-    def _predict_single(self, item: LoadedModel, payload: PrediccionRequest) -> dict[str, Any]:
+        return [
+            self._predict_single(item, payload, selected=item.config.id == payload.modelo_id)
+            for item in prediction_models
+        ]
+
+    def predict_model(self, payload: PrediccionRequest, model_id: str) -> dict[str, Any] | None:
+        selected_model = self.get_predictable_model(model_id)
+        if selected_model is None:
+            return None
+        return self._predict_single(selected_model, payload, selected=True)
+
+    def get_predictable_model(self, model_id: str | None) -> LoadedModel | None:
+        if not model_id:
+            return None
+        return next(
+            (item for item in self.models if item.config.id == model_id and self._is_predictable(item)),
+            None,
+        )
+
+    def _top_prediction_models(self, limit: int | None = None) -> list[LoadedModel]:
+        candidates = [
+            item
+            for item in self.models
+            if item.config.activo and item.config.objetivo.lower() == "costo" and self._is_predictable(item)
+        ]
+        ordered = sorted(candidates, key=lambda item: self._model_sort_key(item))
+        return ordered[:limit] if limit is not None else ordered
+
+    def _is_predictable(self, item: LoadedModel) -> bool:
+        if not item.loaded or item.model is None or item.error is not None:
+            return False
+        return item.config.objetivo.lower() == "costo" and (
+            hasattr(item.model, "predict_cost") or hasattr(item.model, "predict")
+        )
+
+    def _model_sort_key(self, item: LoadedModel) -> tuple[int, float, str]:
+        metric_score = self._metric_score(item.config.metricas or {})
+        return (0 if item.config.principal else 1, metric_score, item.config.nombre)
+
+    def _metric_score(self, metrics: dict[str, Any]) -> float:
+        lower_is_better = ("mae", "rmse", "mape", "error", "loss")
+        higher_is_better = ("r2", "accuracy", "precision", "f1", "score")
+
+        for key in lower_is_better:
+            value = self._numeric_metric(metrics, key)
+            if value is not None:
+                return value
+
+        for key in higher_is_better:
+            value = self._numeric_metric(metrics, key)
+            if value is not None:
+                return -value
+
+        return 0.0
+
+    def _numeric_metric(self, metrics: dict[str, Any], target_key: str) -> float | None:
+        for key, value in metrics.items():
+            if target_key not in str(key).lower():
+                continue
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def _predict_single(self, item: LoadedModel, payload: PrediccionRequest, selected: bool = False) -> dict[str, Any]:
         result: dict[str, Any] = {
             "modelo_id": item.config.id,
             "modelo_nombre": item.config.nombre,
             "principal": item.config.principal,
+            "seleccionado": selected,
             "costo_predicho_usd": None,
             "desglose": None,
             "moneda": "USD",

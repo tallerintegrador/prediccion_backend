@@ -35,12 +35,31 @@ def estimar_costo(
             detail="El registro de modelos no esta disponible.",
         )
 
-    resultados = model_registry.predict_all(payload)
-    principal = next(
+    resultado_seleccionado = model_registry.predict_model(payload, payload.modelo_id) if payload.modelo_id else None
+    if payload.modelo_id and resultado_seleccionado is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El modelo seleccionado no esta disponible para prediccion de costos.",
+        )
+
+    resultados = model_registry.predict_all(payload, limit=3)
+    principal = resultado_seleccionado if (
+        resultado_seleccionado
+        and resultado_seleccionado["error"] is None
+        and resultado_seleccionado["costo_predicho_usd"] is not None
+    ) else None
+    principal = principal or next(
         (
             item
             for item in resultados
             if item["principal"] and item["error"] is None and item["costo_predicho_usd"] is not None
+        ),
+        None,
+    ) or next(
+        (
+            item
+            for item in resultados
+            if item["error"] is None and item["costo_predicho_usd"] is not None
         ),
         None,
     )

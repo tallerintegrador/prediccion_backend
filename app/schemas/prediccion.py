@@ -19,6 +19,7 @@ class PrediccionRequest(BaseModel):
     fecha_eta: date | None = None
     proyecto: str | None = Field(default=None, max_length=120)
     tipo_cambio: float = Field(default=3.78, gt=0)
+    modelo_id: str | None = Field(default=None, max_length=120)
 
     @property
     def categoria(self) -> str:
@@ -67,6 +68,8 @@ class ModeloPredictivoInfo(BaseModel):
     objetivo: str = "costo"
     descripcion: str | None = None
     cargado: bool
+    predecible: bool = False
+    ranking: int | None = None
     error: str | None = None
     metricas: dict[str, Any] | None = None
 
@@ -80,6 +83,7 @@ class ResultadoModeloPrediccion(BaseModel):
     modelo_id: str
     modelo_nombre: str
     principal: bool
+    seleccionado: bool = False
     costo_predicho_usd: float | None = None
     desglose: DesgloseCosto | None = None
     moneda: str = "USD"
