@@ -17,21 +17,37 @@ from app.services.ml_service import ModelRegistry
 
 
 def _ensure_schema_compatibility() -> None:
-    settings = get_settings()
-    if not settings.database_url.startswith("sqlite"):
-        return
-
     inspector = inspect(engine)
     table_names = inspector.get_table_names()
     if "estimaciones_predictivas" not in table_names:
         return
 
     columns = {column["name"] for column in inspector.get_columns("estimaciones_predictivas")}
-    if "fecha_estimada_arribo" not in columns:
-        with engine.begin() as connection:
-            connection.execute(
-                text("ALTER TABLE estimaciones_predictivas ADD COLUMN fecha_estimada_arribo DATE")
-            )
+    expected_columns: dict[str, str] = {
+        "fecha_estimada_arribo": "DATE",
+        "costo_real_usd": "DOUBLE PRECISION",
+        "variacion_usd": "DOUBLE PRECISION",
+        "variacion_porcentaje": "DOUBLE PRECISION",
+        "reconciled_at": "TIMESTAMP WITH TIME ZONE",
+    }
+    settings = get_settings()
+    is_sqlite = settings.database_url.startswith("sqlite")
+    type_overrides = {
+        "DOUBLE PRECISION": "FLOAT",
+        "TIMESTAMP WITH TIME ZONE": "DATETIME",
+    } if is_sqlite else {}
+
+    with engine.begin() as connection:
+        for column_name, column_type in expected_columns.items():
+            if column_name in columns:
+                continue
+            sql_type = type_overrides.get(column_type, column_type)
+            try:
+                connection.execute(
+                    text(f"ALTER TABLE estimaciones_predictivas ADD COLUMN {column_name} {sql_type}")
+                )
+            except Exception as exc:
+                logger.warning("No se pudo agregar columna %s: %s", column_name, exc)
 
 
 @asynccontextmanager
@@ -55,15 +71,19 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*github\.io",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
 def _cors_headers_for(request: Request) -> dict[str, str]:
     origin = request.headers.get("origin")
-    if origin and origin in settings.cors_origins:
+    if not origin:
+        return {}
+    if origin in settings.cors_origins or origin.endswith(".github.io") or origin == "https://github.io":
         return {
             "Access-Control-Allow-Origin": origin,
             "Access-Control-Allow-Credentials": "true",
