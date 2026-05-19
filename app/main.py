@@ -16,6 +16,44 @@ from app.routers import dashboard, historico, motor, prediccion, preliquidacion,
 from app.services.ml_service import ModelRegistry
 
 
+def _safe_identifier(identifier: str) -> str:
+    if not identifier.replace("_", "").isalnum():
+        raise ValueError(f"Identificador de base de datos invalido: {identifier}")
+    return identifier
+
+
+def _sync_postgres_sequence(table_name: str, column_name: str = "id") -> None:
+    if engine.url.get_backend_name() != "postgresql":
+        return
+
+    table_name = _safe_identifier(table_name)
+    column_name = _safe_identifier(column_name)
+    try:
+        with engine.begin() as connection:
+            sequence_name = connection.execute(
+                text("SELECT pg_get_serial_sequence(:table_name, :column_name)"),
+                {"table_name": table_name, "column_name": column_name},
+            ).scalar()
+            if not sequence_name:
+                return
+
+            connection.execute(
+                text(
+                    f"""
+                    SELECT setval(
+                        CAST(:sequence_name AS regclass),
+                        COALESCE((SELECT MAX({column_name}) FROM {table_name}), 1),
+                        COALESCE((SELECT MAX({column_name}) FROM {table_name}), 0) > 0
+                    )
+                    """
+                ),
+                {"sequence_name": sequence_name},
+            )
+        logger.info("Secuencia sincronizada para %s.%s.", table_name, column_name)
+    except Exception as exc:
+        logger.warning("No se pudo sincronizar la secuencia de %s.%s: %s", table_name, column_name, exc)
+
+
 def _ensure_schema_compatibility() -> None:
     inspector = inspect(engine)
     table_names = inspector.get_table_names()
@@ -49,6 +87,9 @@ def _ensure_schema_compatibility() -> None:
             logger.info("Columna %s agregada exitosamente.", column_name)
         except Exception as exc:
             logger.warning("No se pudo agregar columna %s: %s", column_name, exc)
+
+    _sync_postgres_sequence("estimaciones_predictivas")
+    _sync_postgres_sequence("despachos_historicos")
 
 
 @asynccontextmanager
