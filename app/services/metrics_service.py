@@ -1,10 +1,34 @@
 import json
 import math
+import warnings
 from pathlib import Path
 from typing import Any
 
 import joblib
 import numpy as np
+
+
+SUPPORT_ARTIFACT_FILES = (
+    "bias_correction_escalar.joblib",
+    "bias_correction_piecewise.joblib",
+    "bias_prov_concepto.joblib",
+    "clasificacion_config.joblib",
+    "cluster_nombres.joblib",
+    "clustering_config.joblib",
+    "clustering_pca.joblib",
+    "clustering_pca15.joblib",
+    "clustering_preprocessor.joblib",
+    "cqr_margenes_por_concepto.joblib",
+    "feature_config.joblib",
+    "isolation_forest.joblib",
+    "label_encoder_riesgo.joblib",
+    "optuna_best_params.joblib",
+    "regresion_medians.joblib",
+    "riesgo_cat_encoders.joblib",
+    "riesgo_cat_encoders_xgb.joblib",
+    "riesgo_encoder.joblib",
+    "riesgo_score_params.joblib",
+)
 
 
 def read_metrics_file(metrics_path: Path) -> dict[str, Any]:
@@ -102,6 +126,7 @@ def load_artifact_metrics(models_dir: Path) -> dict[str, Any]:
         "clustering": _read_joblib_dict(models_dir / "clustering_config.joblib"),
         "drift": _read_drift_metrics(models_dir / "psi_baseline.joblib"),
         "regresion": _read_regression_config(models_dir),
+        "soporte": _read_support_artifact_metrics(models_dir),
     }
 
 
@@ -205,6 +230,98 @@ def _read_drift_metrics(path: Path) -> dict[str, Any]:
     }
 
 
+def _read_support_artifact_metrics(models_dir: Path) -> dict[str, dict[str, Any]]:
+    summaries: dict[str, dict[str, Any]] = {}
+    for file_name in SUPPORT_ARTIFACT_FILES:
+        path = models_dir / file_name
+        if path.exists():
+            summaries[file_name] = _summarize_support_artifact(path)
+    return summaries
+
+
+def _summarize_support_artifact(path: Path) -> dict[str, Any]:
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            value = joblib.load(path)
+    except Exception:
+        return {"archivo_kb": round(path.stat().st_size / 1024, 1), "estado": "No legible"}
+
+    metrics: dict[str, Any] = {
+        "tipo_artefacto": type(value).__name__,
+        "archivo_kb": round(path.stat().st_size / 1024, 1),
+    }
+
+    if isinstance(value, dict):
+        metrics["elementos"] = len(value)
+        _summarize_known_dict(path.name, value, metrics)
+        return {key: _json_value(item) for key, item in metrics.items()}
+
+    if hasattr(value, "classes_"):
+        metrics["clases"] = len(getattr(value, "classes_"))
+    if hasattr(value, "n_features_in_"):
+        metrics["features"] = int(getattr(value, "n_features_in_"))
+    if hasattr(value, "n_components_"):
+        metrics["componentes"] = int(getattr(value, "n_components_"))
+    if hasattr(value, "explained_variance_ratio_"):
+        variance = getattr(value, "explained_variance_ratio_")
+        metrics["varianza_explicada"] = round(float(np.sum(variance)) * 100, 2)
+    if hasattr(value, "estimators_"):
+        metrics["estimadores"] = len(getattr(value, "estimators_"))
+
+    return {key: _json_value(item) for key, item in metrics.items()}
+
+
+def _summarize_known_dict(file_name: str, value: dict[Any, Any], metrics: dict[str, Any]) -> None:
+    if file_name == "feature_config.joblib":
+        metrics.update(
+            {
+                "features_num": len(value.get("features_num") or []),
+                "features_cat": len(value.get("features_cat") or []),
+                "conceptos": len(value.get("mediana_por_concepto") or {}),
+                "target": value.get("target"),
+            }
+        )
+    elif file_name == "clasificacion_config.joblib":
+        metrics.update(
+            {
+                "algoritmo": value.get("algoritmo"),
+                "accuracy_test": value.get("accuracy_test"),
+                "f1_macro_test": value.get("f1_macro_test"),
+                "f1_macro_cv": value.get("f1_macro_cv"),
+                "features_num": len(value.get("features_num_cls") or []),
+                "features_cat": len(value.get("features_cat_cls") or []),
+            }
+        )
+    elif file_name == "clustering_config.joblib":
+        metrics.update(
+            {
+                "k_optimo": value.get("k_optimo"),
+                "sil_kmeans": value.get("sil_kmeans"),
+                "db_kmeans": value.get("db_kmeans"),
+                "sil_hdbscan": value.get("sil_hdbscan"),
+                "features_num": len(value.get("num_cols") or []),
+                "features_cat": len(value.get("cat_cols") or []),
+            }
+        )
+    elif file_name == "riesgo_score_params.joblib":
+        metrics.update(
+            {
+                "umbral_bajo": value.get("umbral_bajo"),
+                "umbral_medio": value.get("umbral_medio"),
+                "criterio": value.get("criterio"),
+            }
+        )
+    elif "encoder" in file_name:
+        metrics["encoders"] = len(value)
+    elif "bias" in file_name or file_name in {"cqr_margenes_por_concepto.joblib", "optuna_best_params.joblib"}:
+        metrics["conceptos"] = len(value)
+    elif file_name == "cluster_nombres.joblib":
+        metrics["clusters"] = len(value)
+    elif file_name == "regresion_medians.joblib":
+        metrics["features"] = len(value)
+
+
 def _artifact_metrics_for_model(model: dict[str, Any], artifact_metrics: dict[str, Any]) -> dict[str, Any]:
     model_id = str(model.get("id") or "").lower()
     file_name = str(model.get("archivo") or "").lower()
@@ -238,7 +355,7 @@ def _artifact_metrics_for_model(model: dict[str, Any], artifact_metrics: dict[st
         }
     if "psi" in model_id or "drift" in model_id:
         return artifact_metrics.get("drift", {})
-    return {}
+    return artifact_metrics.get("soporte", {}).get(file_name, {})
 
 
 def _difference(left: Any, right: Any) -> float | None:
