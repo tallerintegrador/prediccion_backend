@@ -8,6 +8,4 @@ __pycache__/
 .ruff_cache/
 venv/
 .venv/
-prediccion.db
-models/
 *.pdf

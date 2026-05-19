@@ -15,6 +15,8 @@ RUN pip install --upgrade pip \
     && pip install -r requirements.txt
 
 COPY app ./app
+COPY models ./models
+COPY prediccion.db ./prediccion.db
 
 EXPOSE 8000
 
