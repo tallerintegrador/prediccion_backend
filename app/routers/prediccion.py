@@ -50,14 +50,14 @@ def estimar_costo(
         return PrediccionResponse(resultados_modelos=resultados)
 
     estimacion = EstimacionPredictiva(
-        categoria=payload.categoria,
-        producto=payload.producto,
-        pais_origen=payload.origen,
-        proveedor=payload.proveedor,
-        incoterm=payload.incoterm,
-        cantidad=payload.cantidad,
+        categoria=payload.modalidad,
+        producto=payload.id_despacho,
+        pais_origen=payload.pol,
+        proveedor=payload.proveedor_servicio,
+        incoterm=payload.incoterm_familia,
+        cantidad=payload.peso_kg,
         tipo_cambio=payload.tipo_cambio,
-        fecha_estimada_arribo=payload.fecha_estimada_arribo,
+        fecha_estimada_arribo=payload.fecha_eta,
         costo_predicho_usd=principal["costo_predicho_usd"],
         desglose=principal["desglose"],
     )

@@ -77,7 +77,7 @@ class ConceptCostModel:
 
             predicted_log_pen = float(model.predict(data)[0])
             predicted_pen = max(0.0, math.expm1(predicted_log_pen))
-            concept_amounts_pen[concept] = self._apply_bias(predicted_pen, payload.proveedor, concept)
+            concept_amounts_pen[concept] = self._apply_bias(predicted_pen, payload.proveedor_servicio, concept)
 
         total_pen = sum(concept_amounts_pen.values())
         total_usd = total_pen / payload.tipo_cambio
@@ -85,13 +85,16 @@ class ConceptCostModel:
         return round(total_usd, 2), breakdown
 
     def _build_feature_row(self, payload: PrediccionRequest, concept: str) -> dict[str, Any]:
-        arrival_date = payload.fecha_estimada_arribo or date.today()
-        route = route_from_origin(payload.origen)
-        incoterm_group = incoterm_to_group(payload.incoterm)
-        provider = normalize_text(payload.proveedor)
-        mode = infer_mode(payload)
-        cargo_type = infer_cargo_type(payload.cantidad)
-        quantity = max(float(payload.cantidad), 1.0)
+        arrival_date = payload.fecha_eta or date.today()
+        route = route_from_origin(payload.pol)
+        incoterm_group = incoterm_to_group(payload.incoterm_familia)
+        service_provider = normalize_text(payload.proveedor_servicio)
+        main_provider = normalize_text(payload.proveedor_principal)
+        customs_agency = normalize_text(payload.agencia_aduana)
+        mode = infer_mode(payload.modalidad)
+        cargo_type = infer_cargo_type(payload.modalidad, payload.contenedores)
+        weight = max(float(payload.peso_kg), 1.0)
+        packages = max(float(payload.bultos), 1.0)
         transit_days = transit_days_for_route(route, self._median("dias_transito", 16.0))
 
         row = {feature: self._median(feature, 0.0) for feature in self.features}
@@ -110,19 +113,22 @@ class ConceptCostModel:
                 "es_temporada_alta": 1 if arrival_date.month in {10, 11, 12} else 0,
                 "es_cierre_fiscal": 1 if arrival_date.month == 12 else 0,
                 "dias_transito": transit_days,
-                "densidad_bultos": round(quantity / max(quantity, 1.0), 4),
-                "carga_peso": quantity,
-                "tiene_proyecto": 0,
+                "densidad_bultos": round(weight / packages, 4),
+                "carga_peso": weight,
+                "tiene_proyecto": 1 if payload.proyecto else 0,
                 "concepto_canonico": concept,
                 "incoterm_grupo": incoterm_group,
                 "ruta_origen": route,
-                "proveedor_norm": provider,
-                "agencia_aduana_norm": "AVM ADUANERA S.A.C.",
+                "proveedor_norm": service_provider,
+                "proveedor_principal_norm": main_provider,
+                "agencia_aduana_norm": customs_agency,
+                "pol_norm": normalize_text(payload.pol),
+                "pod_norm": normalize_text(payload.pod),
                 "mode": mode,
                 "type": cargo_type,
-                "log_contenedores": math.log1p(max(1.0, quantity / 1000.0)),
-                "log_bultos": math.log1p(quantity),
-                "log_peso_bruto": math.log1p(quantity),
+                "log_contenedores": math.log1p(payload.contenedores),
+                "log_bultos": math.log1p(payload.bultos),
+                "log_peso_bruto": math.log1p(weight),
             }
         )
 
@@ -133,7 +139,7 @@ class ConceptCostModel:
         row["te_concepto_incoterm"] = self._target_encoding("te_ci", f"{concept}_{incoterm_group}")
         row["te_concepto_ruta"] = self._target_encoding("te_cr", f"{concept}_{route}")
         row["te_proveedor"] = self.feature_config.get("te_prov_map", {}).get(
-            provider,
+            service_provider,
             self.feature_config.get("te_prov_global", self.feature_config.get("mediana_global_log", 0.0)),
         )
         row["median_concepto_mode"] = median_log
@@ -457,12 +463,12 @@ class ModelRegistry:
         return pd.DataFrame(
             [
                 {
-                    "categoria": payload.categoria,
-                    "producto": payload.producto,
-                    "pais_origen": payload.origen,
-                    "proveedor": payload.proveedor,
-                    "incoterm": payload.incoterm,
-                    "cantidad": payload.cantidad,
+                    "categoria": payload.modalidad,
+                    "producto": payload.id_despacho,
+                    "pais_origen": payload.pol,
+                    "proveedor": payload.proveedor_servicio,
+                    "incoterm": payload.incoterm_familia,
+                    "cantidad": payload.peso_kg,
                     "tipo_cambio": payload.tipo_cambio,
                 }
             ],
@@ -496,6 +502,8 @@ def normalize_text(value: str) -> str:
 
 def incoterm_to_group(incoterm: str) -> str:
     normalized = normalize_text(incoterm)
+    if normalized in {"GRUPO_C", "GRUPO_D", "GRUPO_E", "GRUPO_F"}:
+        return normalized
     if normalized.startswith("C"):
         return "GRUPO_C"
     if normalized.startswith("D"):
@@ -513,20 +521,24 @@ def route_from_origin(origin: str) -> str:
     europe = {"ESPANA", "SPAIN", "ALEMANIA", "GERMANY", "FRANCIA", "FRANCE", "ITALIA", "ITALY", "PAISES BAJOS", "NETHERLANDS"}
     north_america = {"ESTADOS UNIDOS", "USA", "UNITED STATES", "CANADA", "MEXICO"}
     latam = {"PERU", "CHILE", "COLOMBIA", "ECUADOR", "BRASIL", "BRAZIL", "ARGENTINA", "BOLIVIA", "URUGUAY"}
+    latam_ports = {"CALLAO", "SANTIAGO", "SAN ANTONIO", "VALPARAISO", "BUENOS AIRES", "CARTAGENA"}
+    asia_ports = {"COLOMBO", "SHANGHAI", "NINGBO", "QINGDAO", "BUSAN", "TOKYO", "SINGAPORE"}
+    europe_ports = {"VALENCIA", "ROTTERDAM", "HAMBURGO", "HAMBURG", "ANTWERP", "GENOVA"}
+    north_america_ports = {"MIAMI", "LOS ANGELES", "NEW YORK", "HOUSTON", "VANCOUVER"}
 
-    if any(country in normalized for country in asia):
+    if any(country in normalized for country in asia | asia_ports):
         return "ASIA"
-    if any(country in normalized for country in europe):
+    if any(country in normalized for country in europe | europe_ports):
         return "EUROPA"
-    if any(country in normalized for country in north_america):
+    if any(country in normalized for country in north_america | north_america_ports):
         return "NORTEAM"
-    if any(country in normalized for country in latam):
+    if any(country in normalized for country in latam | latam_ports):
         return "LATAM"
     return "OTROS"
 
 
-def infer_mode(payload: PrediccionRequest) -> str:
-    text = normalize_text(f"{payload.categoria} {payload.producto}")
+def infer_mode(modality: str) -> str:
+    text = normalize_text(modality)
     if "AERE" in text or "AIR" in text:
         return "AIR"
     if "TERRESTRE" in text or "TRUCK" in text:
@@ -534,8 +546,17 @@ def infer_mode(payload: PrediccionRequest) -> str:
     return "SEA"
 
 
-def infer_cargo_type(quantity: float) -> str:
-    return "FCL" if quantity >= 1000 else "LCL"
+def infer_cargo_type(modality: str, containers: int) -> str:
+    text = normalize_text(modality)
+    if "AIR" in text or "AERE" in text:
+        return "AIR"
+    if "FCL" in text:
+        return "FCL"
+    if "LCL" in text:
+        return "LCL"
+    if "COURIER" in text:
+        return "COURIER"
+    return "FCL" if containers > 0 else "LCL"
 
 
 def transit_days_for_route(route: str, default: float) -> float:

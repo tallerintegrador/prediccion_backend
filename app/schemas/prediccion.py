@@ -5,14 +5,48 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class PrediccionRequest(BaseModel):
-    categoria: str = Field(..., min_length=1, max_length=120)
-    producto: str = Field(..., min_length=1, max_length=180)
-    origen: str = Field(..., min_length=1, max_length=120)
-    proveedor: str = Field(..., min_length=1, max_length=180)
-    incoterm: str = Field(..., min_length=1, max_length=20)
-    cantidad: float = Field(..., gt=0)
-    tipo_cambio: float = Field(..., gt=0)
-    fecha_estimada_arribo: date | None = None
+    id_despacho: str = Field(..., min_length=1, max_length=80)
+    proveedor_servicio: str = Field(..., min_length=1, max_length=180)
+    proveedor_principal: str = Field(..., min_length=1, max_length=180)
+    agencia_aduana: str = Field(..., min_length=1, max_length=180)
+    pol: str = Field(..., min_length=1, max_length=120)
+    pod: str = Field(..., min_length=1, max_length=120)
+    modalidad: str = Field(..., min_length=1, max_length=40)
+    incoterm_familia: str = Field(..., min_length=1, max_length=20)
+    contenedores: int = Field(..., ge=0)
+    bultos: int = Field(..., ge=0)
+    peso_kg: float = Field(..., gt=0)
+    fecha_eta: date | None = None
+    proyecto: str | None = Field(default=None, max_length=120)
+    tipo_cambio: float = Field(default=3.78, gt=0)
+
+    @property
+    def categoria(self) -> str:
+        return self.modalidad
+
+    @property
+    def producto(self) -> str:
+        return self.id_despacho
+
+    @property
+    def origen(self) -> str:
+        return self.pol
+
+    @property
+    def proveedor(self) -> str:
+        return self.proveedor_servicio
+
+    @property
+    def incoterm(self) -> str:
+        return self.incoterm_familia
+
+    @property
+    def cantidad(self) -> float:
+        return self.peso_kg
+
+    @property
+    def fecha_estimada_arribo(self) -> date | None:
+        return self.fecha_eta
 
 
 class DesgloseCosto(BaseModel):
